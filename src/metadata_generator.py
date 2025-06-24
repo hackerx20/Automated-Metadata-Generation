@@ -264,7 +264,7 @@ class MetadataGenerator:
                     if indicator in text_lower:
                         score += 1
                     # Check in keywords too
-                    if any(indicator in kw.lower() for kw in keywords):
+                    if any(indicator in kw.lower() for kw in keywords if isinstance(kw, str)):
                         score += 0.5
                 
                 # Normalize score
@@ -322,7 +322,7 @@ class MetadataGenerator:
                 score += position_score * 0.3
                 
                 # Keyword score
-                keyword_score = sum(1 for kw in keywords if kw.lower() in sentence_lower)
+                keyword_score = sum(1 for kw in keywords if isinstance(kw, str) and kw.lower() in sentence_lower)
                 score += keyword_score * 0.7
                 
                 # Length penalty (very short or very long sentences)

@@ -313,6 +313,8 @@ class ContentAnalyzer:
         try:
             # Get keywords first
             keywords = self._extract_keywords(text, 20)
+            if not keywords:
+                keywords = []
             
             # Simple topic identification based on keyword patterns
             topic_patterns = {
@@ -326,7 +328,7 @@ class ContentAnalyzer:
             
             # Check which topics match the keywords
             for topic, pattern_words in topic_patterns.items():
-                matches = sum(1 for kw in keywords if any(pw in kw.lower() for pw in pattern_words))
+                matches = sum(1 for kw in keywords if isinstance(kw, str) and any(pw in kw.lower() for pw in pattern_words))
                 if matches >= 2:  # At least 2 matching keywords
                     topics.append(topic)
             

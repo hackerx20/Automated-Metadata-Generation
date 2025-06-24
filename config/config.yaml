@@ -1,0 +1,139 @@
+# Automated Metadata Generation System Configuration
+
+# Application Settings
+app:
+  name: "Automated Metadata Generation System"
+  version: "1.0.0"
+  description: "Streamlit-based system for automated document metadata generation"
+
+# File Processing Settings
+file_processing:
+  max_file_size_mb: 10
+  supported_formats:
+    - "pdf"
+    - "docx"
+    - "txt"
+  temp_directory: "temp"
+  
+  # OCR Settings
+  ocr:
+    enabled: true
+    config: "--psm 3"
+    resolution: 300
+
+# NLP Processing Settings
+nlp:
+  # spaCy Settings
+  spacy:
+    model: "en_core_web_sm"
+    disable_components: []
+  
+  # Keyword Extraction
+  keyword_extraction:
+    max_keywords: 20
+    yake_settings:
+      lan: "en"
+      n: 3
+      dedupLim: 0.7
+      top: 20
+  
+  # Named Entity Recognition
+  ner:
+    max_entities: 30
+    entity_types:
+      - "PERSON"
+      - "ORG"
+      - "GPE"
+      - "MONEY"
+      - "DATE"
+      - "TIME"
+  
+  # Sentiment Analysis
+  sentiment:
+    analyzer: "vader"
+    confidence_threshold: 0.05
+
+# Metadata Generation Settings
+metadata:
+  schema_version: "1.0"
+  include_processing_metadata: true
+  quality_assessment: true
+  
+  # Summary Settings
+  summary:
+    max_sentences: 3
+    min_sentence_length: 10
+    max_sentence_length: 30
+  
+  # Classification Settings
+  classification:
+    confidence_threshold: 0.3
+    max_topics: 5
+
+# User Interface Settings
+ui:
+  page_title: "Automated Metadata Generation System"
+  page_icon: "📄"
+  layout: "wide"
+  
+  # Theme Settings
+  theme:
+    primary_color: "#1f77b4"
+    background_color: "#ffffff"
+    secondary_background_color: "#f0f2f6"
+  
+  # Display Settings
+  display:
+    max_preview_length: 1000
+    max_keywords_display: 15
+    max_entities_display: 20
+    max_history_items: 100
+
+# Export Settings
+export:
+  formats:
+    - "json"
+    - "csv"
+    - "xml"
+  
+  json:
+    indent: 2
+    ensure_ascii: false
+  
+  csv:
+    separator: ","
+    encoding: "utf-8"
+
+# Logging Settings
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file: "metadata_generation.log"
+
+# Performance Settings
+performance:
+  max_concurrent_uploads: 5
+  processing_timeout_seconds: 300
+  cache_size: 100
+
+# Security Settings
+security:
+  allowed_file_extensions:
+    - ".pdf"
+    - ".docx"
+    - ".doc" 
+    - ".txt"
+  
+  blocked_characters:
+    - ".."
+    - "/"
+    - "\\"
+    - "<"
+    - ">"
+    - "|"
+    - ":"
+    - "*"
+    - "?"
+    - "\""
+  
+  max_filename_length: 255

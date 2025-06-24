@@ -213,8 +213,18 @@ class ContentAnalyzer:
         """Extract keywords using YAKE algorithm"""
         try:
             keywords = self.kw_extractor.extract_keywords(text)
-            return [kw[1] for kw in keywords[:num_keywords]]
-        except:
+            # YAKE returns (score, keyword) tuples - we want the keyword (index 1)
+            extracted = []
+            for kw in keywords[:num_keywords]:
+                if isinstance(kw, tuple) and len(kw) >= 2:
+                    extracted.append(str(kw[1]))  # keyword text
+                elif isinstance(kw, str):
+                    extracted.append(kw)
+                else:
+                    extracted.append(str(kw))
+            return extracted
+        except Exception as e:
+            logger.warning(f"YAKE extraction failed: {str(e)}")
             # Fallback to TF-IDF if YAKE fails
             return self._extract_keywords_tfidf(text, num_keywords)
     

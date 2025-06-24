@@ -71,33 +71,45 @@ class MetadataApp:
         """File upload and processing interface"""
         st.header("📤 Document Upload")
         
-        # File upload
-        uploaded_file = st.file_uploader(
-            "Choose a document file",
-            type=['pdf', 'docx', 'txt'],
-            help="Supported formats: PDF, DOCX, TXT (Max size: 10MB)"
-        )
+        # File upload with error handling
+        try:
+            uploaded_file = st.file_uploader(
+                "Choose a document file",
+                type=['pdf', 'docx', 'doc', 'txt'],
+                help="Supported formats: PDF, DOCX, TXT (Max size: 5MB)",
+                accept_multiple_files=False
+            )
+        except Exception as e:
+            st.error(f"File upload error: {str(e)}")
+            uploaded_file = None
         
         if uploaded_file is not None:
-            # File validation
-            is_valid, error_message = validate_file(uploaded_file)
-            
-            if not is_valid:
-                st.error(f"❌ File validation failed: {error_message}")
-                return
-            
-            # Display file information
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                st.metric("File Name", uploaded_file.name)
-            with col2:
-                st.metric("File Size", format_file_size(uploaded_file.size))
-            with col3:
-                st.metric("File Type", uploaded_file.type)
-            
-            # Processing button
-            if st.button("🚀 Process Document", type="primary"):
-                self.process_document(uploaded_file)
+            try:
+                # File validation
+                is_valid, error_message = validate_file(uploaded_file)
+                
+                if not is_valid:
+                    st.error(f"File validation failed: {error_message}")
+                    return
+                
+                # Display file information
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric("File Name", uploaded_file.name)
+                with col2:
+                    st.metric("File Size", format_file_size(uploaded_file.size))
+                with col3:
+                    file_type = uploaded_file.type if uploaded_file.type else "Unknown"
+                    st.metric("File Type", file_type)
+                
+                # Processing button
+                if st.button("Process Document", type="primary"):
+                    with st.spinner("Processing document..."):
+                        self.process_document(uploaded_file)
+                        
+            except Exception as e:
+                st.error(f"Error handling file: {str(e)}")
+                st.info("Please try uploading a different file or refresh the page.")
 
     def process_document(self, uploaded_file):
         """Process the uploaded document and generate metadata"""

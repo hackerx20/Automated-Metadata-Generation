@@ -14,41 +14,52 @@ def validate_file(uploaded_file) -> Tuple[bool, Optional[str]]:
     Returns:
         Tuple of (is_valid, error_message)
     """
-    if uploaded_file is None:
-        return False, "No file uploaded"
-    
-    # Check file size (10MB limit)
-    max_size = 10 * 1024 * 1024  # 10MB
-    if uploaded_file.size > max_size:
-        return False, f"File size ({format_file_size(uploaded_file.size)}) exceeds maximum allowed size ({format_file_size(max_size)})"
-    
-    # Check file type
-    allowed_types = [
-        'application/pdf',
-        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-        'application/msword',
-        'text/plain'
-    ]
-    
-    if uploaded_file.type not in allowed_types:
-        return False, f"File type '{uploaded_file.type}' is not supported. Allowed types: PDF, DOCX, TXT"
-    
-    # Check file extension
-    filename = uploaded_file.name.lower()
-    allowed_extensions = ['.pdf', '.docx', '.doc', '.txt']
-    
-    if not any(filename.endswith(ext) for ext in allowed_extensions):
-        return False, f"File extension not supported. Allowed extensions: {', '.join(allowed_extensions)}"
-    
-    # Basic security check - filename
-    if any(char in uploaded_file.name for char in ['..', '/', '\\', '<', '>', '|', ':', '*', '?', '"']):
-        return False, "Filename contains invalid characters"
-    
-    # Check if file is empty
-    if uploaded_file.size == 0:
-        return False, "File is empty"
-    
-    return True, None
+    try:
+        if uploaded_file is None:
+            return False, "No file uploaded"
+        
+        # Check if file has required attributes
+        if not hasattr(uploaded_file, 'size') or not hasattr(uploaded_file, 'name') or not hasattr(uploaded_file, 'type'):
+            return False, "Invalid file object"
+        
+        # Check file size (5MB limit - reduced from 10MB to avoid upload issues)
+        max_size = 5 * 1024 * 1024  # 5MB
+        if uploaded_file.size and uploaded_file.size > max_size:
+            return False, f"File size ({format_file_size(uploaded_file.size)}) exceeds maximum allowed size ({format_file_size(max_size)})"
+        
+        # Check if file is empty
+        if uploaded_file.size == 0:
+            return False, "File is empty"
+        
+        # Check file extension first (more reliable than MIME type)
+        filename = uploaded_file.name.lower() if uploaded_file.name else ""
+        allowed_extensions = ['.pdf', '.docx', '.doc', '.txt']
+        
+        if not any(filename.endswith(ext) for ext in allowed_extensions):
+            return False, f"File extension not supported. Allowed extensions: {', '.join(allowed_extensions)}"
+        
+        # Basic security check - filename
+        if uploaded_file.name and any(char in uploaded_file.name for char in ['..', '/', '\\', '<', '>', '|', ':', '*', '?', '"']):
+            return False, "Filename contains invalid characters"
+        
+        # Check file type (more lenient)
+        allowed_types = [
+            'application/pdf',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'application/msword',
+            'text/plain',
+            'application/octet-stream'  # Sometimes files are detected as this
+        ]
+        
+        if uploaded_file.type and uploaded_file.type not in allowed_types:
+            # Still allow if extension is correct
+            if not any(filename.endswith(ext) for ext in allowed_extensions):
+                return False, f"File type '{uploaded_file.type}' is not supported. Allowed types: PDF, DOCX, TXT"
+        
+        return True, None
+        
+    except Exception as e:
+        return False, f"File validation error: {str(e)}"
 
 def format_file_size(size_bytes: int) -> str:
     """

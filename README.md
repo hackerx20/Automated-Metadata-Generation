@@ -6,6 +6,11 @@ A comprehensive Streamlit-based web application that automatically generates sem
 ![Python](https://img.shields.io/badge/Python-3.11+-blue)
 ![NLP](https://img.shields.io/badge/NLP-spaCy%20%7C%20NLTK-green)
 
+## Streamlit Community Cloud Deployed Link:
+```bash
+https://automated-metadata-generation-ghjh2yuv6mxigiorjuk66e.streamlit.app/
+```
+
 ## 🎯 Overview
 
 This system processes PDF, DOCX, and TXT files to extract meaningful metadata including keywords, named entities, topics, sentiment analysis, and document classification. It provides an intuitive web interface for document upload and comprehensive metadata visualization.

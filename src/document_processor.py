@@ -8,7 +8,7 @@ from docx import Document
 import pytesseract
 from PIL import Image
 import io
-
+from pdf2image import convert_from_bytes
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

@@ -7,6 +7,14 @@ from datetime import datetime
 from io import BytesIO
 import plotly.express as px
 import plotly.graph_objects as go
+import spacy
+
+try:
+    nlp = spacy.load("en_core_web_sm")
+except:
+    from spacy.cli import download
+    download("en_core_web_sm")
+    nlp = spacy.load("en_core_web_sm")
 
 # Import custom modules
 from src.document_processor import DocumentProcessor

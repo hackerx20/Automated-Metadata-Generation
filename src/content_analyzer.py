@@ -15,9 +15,11 @@ logger = logging.getLogger(__name__)
 
 # Download required NLTK data
 try:
+    nltk.download('punkt_tab', quiet=True)
     nltk.download('punkt', quiet=True)
     nltk.download('stopwords', quiet=True)
     nltk.download('vader_lexicon', quiet=True)
+    nltk.download('averaged_perceptron_tagger_eng', quiet=True)
     nltk.download('averaged_perceptron_tagger', quiet=True)
 except:
     pass

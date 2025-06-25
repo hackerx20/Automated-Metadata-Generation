@@ -22,8 +22,8 @@ def validate_file(uploaded_file) -> Tuple[bool, Optional[str]]:
         if not hasattr(uploaded_file, 'size') or not hasattr(uploaded_file, 'name') or not hasattr(uploaded_file, 'type'):
             return False, "Invalid file object"
         
-        # Check file size (5MB limit - reduced from 10MB to avoid upload issues)
-        max_size = 5 * 1024 * 1024  # 5MB
+        # Check file size (10MB limit)
+        max_size = 10 * 1024 * 1024  # 10MB
         if uploaded_file.size and uploaded_file.size > max_size:
             return False, f"File size ({format_file_size(uploaded_file.size)}) exceeds maximum allowed size ({format_file_size(max_size)})"
         

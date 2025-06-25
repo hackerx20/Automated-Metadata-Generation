@@ -17,7 +17,7 @@ from src.utils import validate_file, format_file_size, get_file_hash
 # Page configuration
 st.set_page_config(
     page_title="Automated Metadata Generation System",
-    page_icon="📄",
+    page_icon="🎅",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -72,19 +72,26 @@ class MetadataApp:
         st.header("📤 Document Upload")
         
         # File upload with error handling
+        st.info("Supported formats: PDF, DOCX, TXT (Max size: 10MB)")
+        
         try:
             uploaded_file = st.file_uploader(
                 "Choose a document file",
                 type=['pdf', 'docx', 'doc', 'txt'],
-                help="Supported formats: PDF, DOCX, TXT (Max size: 5MB)",
-                accept_multiple_files=False
+                help="Upload your document for automated metadata generation",
+                accept_multiple_files=False,
+                key="document_uploader"
             )
         except Exception as e:
-            st.error(f"File upload error: {str(e)}")
+            st.error(f"Upload failed: {str(e)}")
+            st.info("Try refreshing the page or using a smaller file.")
             uploaded_file = None
         
         if uploaded_file is not None:
             try:
+                # Show file info immediately
+                st.success(f"File uploaded: {uploaded_file.name} ({format_file_size(uploaded_file.size)})")
+                
                 # File validation
                 is_valid, error_message = validate_file(uploaded_file)
                 
@@ -128,8 +135,18 @@ class MetadataApp:
             os.makedirs("temp", exist_ok=True)
             temp_file_path = f"temp/{uploaded_file.name}"
             
-            with open(temp_file_path, "wb") as f:
-                f.write(uploaded_file.getbuffer())
+            try:
+                with open(temp_file_path, "wb") as f:
+                    file_content = uploaded_file.getbuffer()
+                    if len(file_content) == 0:
+                        st.error("File appears to be empty")
+                        return
+                    f.write(file_content)
+                    f.flush()
+                    os.fsync(f.fileno())
+            except Exception as write_error:
+                st.error(f"Failed to save file: {str(write_error)}")
+                return
             
             # Step 2: Extract text content
             status_text.text("📖 Extracting text content...")
@@ -138,35 +155,45 @@ class MetadataApp:
             extracted_text = self.doc_processor.extract_text(temp_file_path, uploaded_file.type)
             
             if not extracted_text.strip():
-                st.error("❌ No text content could be extracted from the document.")
+                st.error("No text content could be extracted from the document.")
                 return
+            
+            # Extract PDF metadata if it's a PDF file
+            pdf_metadata = None
+            if uploaded_file.type == 'application/pdf' or uploaded_file.name.lower().endswith('.pdf'):
+                try:
+                    status_text.text("📋 Extracting PDF metadata...")
+                    progress_bar.progress(35)
+                    pdf_metadata = self.doc_processor.extract_pdf_metadata(temp_file_path)
+                except Exception as e:
+                    st.warning(f"Could not extract PDF metadata: {str(e)}")
             
             # Step 3: Preprocess text
             status_text.text("🔧 Preprocessing text...")
-            progress_bar.progress(40)
+            progress_bar.progress(45)
             
             cleaned_text = self.doc_processor.preprocess_text(extracted_text)
             
             # Step 4: Analyze content
             status_text.text("🧠 Analyzing content with NLP...")
-            progress_bar.progress(60)
+            progress_bar.progress(65)
             
             analysis_results = self.content_analyzer.analyze_content(cleaned_text)
             
             # Step 5: Generate metadata
             status_text.text("📊 Generating metadata...")
-            progress_bar.progress(80)
+            progress_bar.progress(85)
             
             file_info = {
-                'filename': uploaded_file.name,
-                'file_size': uploaded_file.size,
-                'file_type': uploaded_file.type,
-                'upload_timestamp': datetime.now().isoformat(),
-                'file_hash': get_file_hash(uploaded_file.getbuffer())
+                'name': uploaded_file.name,
+                'size': uploaded_file.size,
+                'type': uploaded_file.type,
+                'upload_time': datetime.now().isoformat(),
+                'content': uploaded_file.getbuffer()
             }
             
             metadata = self.metadata_generator.generate_metadata(
-                file_info, cleaned_text, analysis_results
+                file_info, cleaned_text, analysis_results, pdf_metadata
             )
             
             # Step 6: Finalize
@@ -261,6 +288,21 @@ class MetadataApp:
         
         with meta_tab5:
             self.display_document_preview(document)
+        
+        # PDF Details tab (if PDF metadata is available)
+        if 'pdf_metadata' in metadata:
+            with st.expander("PDF Details", expanded=False):
+                self.display_pdf_details(metadata['pdf_metadata'])
+        
+        # Document Relationships tab
+        if 'document_relationships' in metadata:
+            with st.expander("Document Relationships", expanded=False):
+                self.display_document_relationships(metadata['document_relationships'])
+        
+        # Structural Elements tab
+        if 'structural_elements' in metadata:
+            with st.expander("Structural Elements", expanded=False):
+                self.display_structural_elements(metadata['structural_elements'])
 
     def display_overview(self, metadata):
         """Display basic file information and summary"""
@@ -520,6 +562,119 @@ class MetadataApp:
             history_df[['filename', 'file_type', 'file_size', 'processing_time', 'timestamp']],
             use_container_width=True
         )
+    
+    def display_pdf_details(self, pdf_metadata):
+        """Display PDF-specific metadata details"""
+        st.subheader("📄 PDF Technical Details")
+        
+        # Technical properties
+        tech_props = pdf_metadata.get('technical_properties', {})
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            st.metric("Page Count", tech_props.get('page_count', 0))
+        with col2:
+            st.metric("Embedded Files", tech_props.get('embedded_files_count', 0))
+        with col3:
+            st.metric("Form Fields", tech_props.get('form_fields_count', 0))
+        
+        # Creation info
+        creation_info = pdf_metadata.get('creation_info', {})
+        if any(creation_info.values()):
+            st.subheader("📝 Creation Information")
+            if creation_info.get('author'):
+                st.write(f"**Author:** {creation_info['author']}")
+            if creation_info.get('creator_application'):
+                st.write(f"**Created with:** {creation_info['creator_application']}")
+            if creation_info.get('creation_date'):
+                st.write(f"**Created:** {creation_info['creation_date']}")
+        
+        # Document structure
+        structure = pdf_metadata.get('structure', {})
+        if structure.get('bookmarks_count', 0) > 0:
+            st.subheader("📚 Document Structure")
+            st.write(f"**Bookmarks:** {structure['bookmarks_count']}")
+            if structure.get('bookmarks'):
+                st.write("**Table of Contents:**")
+                for bookmark in structure['bookmarks'][:5]:
+                    st.write(f"{'  ' * bookmark.get('level', 1)}- {bookmark.get('title', 'Unknown')}")
+        
+        # Security information
+        if 'document_security' in pdf_metadata:
+            security = pdf_metadata['document_security']
+            if security.get('is_encrypted') or security.get('has_digital_signatures'):
+                st.subheader("🔒 Security Features")
+                if security.get('is_encrypted'):
+                    st.write("🔐 Document is encrypted")
+                if security.get('has_digital_signatures'):
+                    st.write("✍️ Contains digital signatures")
+    
+    def display_document_relationships(self, relationships):
+        """Display document relationship analysis"""
+        st.subheader("🔗 Document Relationships")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            if relationships.get('references_other_documents'):
+                st.success(f"📚 References other documents ({relationships.get('citation_count', 0)} citations)")
+            else:
+                st.info("📚 No external references found")
+            
+            if relationships.get('is_part_of_series'):
+                st.success("📖 Part of a document series")
+                if relationships.get('series_indicators'):
+                    st.write("**Series indicators:**")
+                    for indicator in relationships['series_indicators'][:3]:
+                        st.write(f"- {indicator}")
+            else:
+                st.info("📖 Standalone document")
+        
+        with col2:
+            if relationships.get('has_appendices'):
+                st.success("📎 Contains appendices")
+            else:
+                st.info("📎 No appendices found")
+            
+            if relationships.get('cross_references'):
+                st.success(f"🔗 Internal cross-references ({len(relationships['cross_references'])})")
+                if relationships['cross_references']:
+                    st.write("**Examples:**")
+                    for ref in relationships['cross_references'][:3]:
+                        st.write(f"- {ref}")
+            else:
+                st.info("🔗 No internal cross-references")
+    
+    def display_structural_elements(self, elements):
+        """Display structural elements analysis"""
+        st.subheader("🏗️ Structural Elements")
+        
+        # Create metrics for different element types
+        col1, col2, col3, col4 = st.columns(4)
+        
+        with col1:
+            st.metric("Tables", elements.get('tables', {}).get('count', 0))
+            st.metric("Figures", elements.get('figures', {}).get('count', 0))
+        
+        with col2:
+            st.metric("Equations", elements.get('equations', {}).get('count', 0))
+            st.metric("Code Blocks", elements.get('code_blocks', {}).get('count', 0))
+        
+        with col3:
+            st.metric("Lists", elements.get('lists', {}).get('count', 0))
+            st.metric("Footnotes", elements.get('footnotes', {}).get('count', 0))
+        
+        with col4:
+            st.metric("Headers", elements.get('headers', {}).get('count', 0))
+            if elements.get('headers', {}).get('levels'):
+                st.write(f"Levels: {', '.join(map(str, elements['headers']['levels']))}")
+        
+        # Show examples of found elements
+        for element_type, element_data in elements.items():
+            if element_data.get('count', 0) > 0 and element_data.get('indicators'):
+                with st.expander(f"{element_type.title()} Examples"):
+                    for indicator in element_data['indicators'][:5]:
+                        st.code(str(indicator))
 
 if __name__ == "__main__":
     app = MetadataApp()

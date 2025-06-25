@@ -1,9 +1,11 @@
 import json
 import uuid
+import re
 from datetime import datetime
 from typing import Dict, List, Any, Optional
 import hashlib
 import logging
+import xml.etree.ElementTree as ET
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -18,7 +20,7 @@ class MetadataGenerator:
         self.metadata_schema_version = "1.0"
         self.generator_version = "1.0.0"
     
-    def generate_metadata(self, file_info: Dict, text: str, analysis_results: Dict) -> Dict:
+    def generate_metadata(self, file_info: Dict, text: str, analysis_results: Dict, pdf_metadata: Dict = None) -> Dict:
         """
         Generate comprehensive metadata from file info and analysis results
         
@@ -26,6 +28,7 @@ class MetadataGenerator:
             file_info: Basic file information
             text: Original text content
             analysis_results: Results from content analysis
+            pdf_metadata: PDF-specific metadata (if applicable)
             
         Returns:
             Complete metadata dictionary
@@ -53,23 +56,286 @@ class MetadataGenerator:
             if summary:
                 metadata['semantic_analysis']['summary'] = summary
             
+            # Add enhanced metadata features
+            metadata['document_relationships'] = self._analyze_document_relationships(text, analysis_results)
+            metadata['structural_elements'] = self._catalog_structural_elements(text, analysis_results)
+            metadata['integrity_verification'] = self._generate_integrity_hashes(file_info)
+            
+            # Add PDF-specific metadata if available
+            if pdf_metadata:
+                metadata['pdf_metadata'] = self._process_pdf_metadata(pdf_metadata)
+                metadata['document_security'] = self._analyze_pdf_security(pdf_metadata)
+            
             return metadata
             
         except Exception as e:
             logger.error(f"Error generating metadata: {str(e)}")
             return self._generate_error_metadata(str(e), file_info)
     
+    def _process_pdf_metadata(self, pdf_metadata: Dict) -> Dict:
+        """Process and enhance PDF-specific metadata"""
+        processed = {
+            'technical_properties': {
+                'pdf_version': pdf_metadata.get('pdf_version'),
+                'page_count': pdf_metadata.get('page_count', 0),
+                'is_encrypted': pdf_metadata.get('is_encrypted', False),
+                'has_signatures': pdf_metadata.get('has_signatures', False),
+                'embedded_files_count': len(pdf_metadata.get('embedded_files', [])),
+                'form_fields_count': len(pdf_metadata.get('form_fields', [])),
+                'annotations_count': len(pdf_metadata.get('annotations', []))
+            },
+            'creation_info': {
+                'author': pdf_metadata.get('author', ''),
+                'creator_application': pdf_metadata.get('creator', ''),
+                'producer': pdf_metadata.get('producer', ''),
+                'creation_date': pdf_metadata.get('creation_date', ''),
+                'modification_date': pdf_metadata.get('modification_date', '')
+            },
+            'document_properties': {
+                'title': pdf_metadata.get('title', ''),
+                'subject': pdf_metadata.get('subject', ''),
+                'keywords': pdf_metadata.get('keywords', ''),
+            },
+            'structure': {
+                'bookmarks_count': len(pdf_metadata.get('bookmarks', [])),
+                'has_table_of_contents': len(pdf_metadata.get('bookmarks', [])) > 0,
+                'page_size_consistency': self._analyze_page_sizes(pdf_metadata.get('page_sizes', [])),
+                'bookmarks': pdf_metadata.get('bookmarks', [])[:10]  # First 10 bookmarks
+            },
+            'interactive_elements': {
+                'form_fields': pdf_metadata.get('form_fields', []),
+                'annotations': pdf_metadata.get('annotations', []),
+                'embedded_files': pdf_metadata.get('embedded_files', [])
+            }
+        }
+        
+        return processed
+    
+    def _analyze_pdf_security(self, pdf_metadata: Dict) -> Dict:
+        """Analyze PDF security settings"""
+        return {
+            'is_encrypted': pdf_metadata.get('is_encrypted', False),
+            'has_digital_signatures': pdf_metadata.get('has_signatures', False),
+            'security_level': 'encrypted' if pdf_metadata.get('is_encrypted') else 'open',
+            'interactive_elements_present': len(pdf_metadata.get('form_fields', [])) > 0,
+            'embedded_content': len(pdf_metadata.get('embedded_files', [])) > 0
+        }
+    
+    def _analyze_page_sizes(self, page_sizes: List[Dict]) -> Dict:
+        """Analyze page size consistency"""
+        if not page_sizes:
+            return {'consistent': True, 'variations': 0}
+        
+        # Group by size
+        size_groups = {}
+        for page_info in page_sizes:
+            size_key = f"{page_info.get('width', 0):.1f}x{page_info.get('height', 0):.1f}"
+            if size_key not in size_groups:
+                size_groups[size_key] = 0
+            size_groups[size_key] += 1
+        
+        return {
+            'consistent': len(size_groups) == 1,
+            'variations': len(size_groups),
+            'size_distribution': size_groups,
+            'most_common_size': max(size_groups.keys(), key=lambda k: size_groups[k]) if size_groups else None
+        }
+    
+    def _analyze_document_relationships(self, text: str, analysis_results: Dict) -> Dict:
+        """Analyze document relationships and references"""
+        relationships = {
+            'references_other_documents': False,
+            'is_part_of_series': False,
+            'has_appendices': False,
+            'citation_count': 0,
+            'reference_types': [],
+            'series_indicators': [],
+            'cross_references': []
+        }
+        
+        # Look for document series indicators
+        series_patterns = [
+            r'volume\s+\d+', r'part\s+\d+', r'chapter\s+\d+',
+            r'section\s+\d+', r'book\s+\d+', r'edition\s+\d+'
+        ]
+        
+        for pattern in series_patterns:
+            matches = re.findall(pattern, text.lower())
+            if matches:
+                relationships['is_part_of_series'] = True
+                relationships['series_indicators'].extend(matches)
+        
+        # Look for appendices
+        appendix_patterns = [r'appendix\s+[a-z]', r'annex\s+\d+', r'attachment\s+\d+']
+        for pattern in appendix_patterns:
+            if re.search(pattern, text.lower()):
+                relationships['has_appendices'] = True
+                break
+        
+        # Count citations and references
+        citation_patterns = [
+            r'\[[0-9]+\]',  # [1], [2], etc.
+            r'\([0-9]{4}\)',  # (2023), etc.
+            r'et\s+al\.',  # et al.
+            r'ibid\.',  # ibid.
+            r'op\.\s*cit\.',  # op. cit.
+        ]
+        
+        for pattern in citation_patterns:
+            matches = re.findall(pattern, text)
+            relationships['citation_count'] += len(matches)
+            if matches:
+                relationships['references_other_documents'] = True
+                relationships['reference_types'].append(pattern)
+        
+        # Look for cross-references
+        cross_ref_patterns = [
+            r'see\s+(?:page|section|chapter|figure|table)\s+\d+',
+            r'as\s+(?:mentioned|discussed|shown)\s+(?:in|on)\s+(?:page|section)\s+\d+',
+            r'refer\s+to\s+(?:page|section|chapter|figure|table)\s+\d+'
+        ]
+        
+        for pattern in cross_ref_patterns:
+            matches = re.findall(pattern, text.lower())
+            relationships['cross_references'].extend(matches)
+        
+        return relationships
+    
+    def _catalog_structural_elements(self, text: str, analysis_results: Dict) -> Dict:
+        """Catalog structural elements like tables, figures, etc."""
+        elements = {
+            'tables': {'count': 0, 'indicators': []},
+            'figures': {'count': 0, 'indicators': []},
+            'equations': {'count': 0, 'indicators': []},
+            'code_blocks': {'count': 0, 'indicators': []},
+            'lists': {'count': 0, 'types': []},
+            'footnotes': {'count': 0, 'indicators': []},
+            'headers': {'count': 0, 'levels': []}
+        }
+        
+        # Table indicators
+        table_patterns = [
+            r'table\s+\d+', r'tab\.\s+\d+', r'\|\s*[^|]+\s*\|',
+            r'TABLES?:', r'│.*│'  # Various table formats
+        ]
+        
+        for pattern in table_patterns:
+            matches = re.findall(pattern, text, re.IGNORECASE)
+            if matches:
+                elements['tables']['count'] += len(matches)
+                elements['tables']['indicators'].extend(matches[:5])  # First 5 matches
+        
+        # Figure indicators
+        figure_patterns = [
+            r'figure\s+\d+', r'fig\.\s+\d+', r'image\s+\d+',
+            r'FIGURES?:', r'diagram\s+\d+'
+        ]
+        
+        for pattern in figure_patterns:
+            matches = re.findall(pattern, text, re.IGNORECASE)
+            if matches:
+                elements['figures']['count'] += len(matches)
+                elements['figures']['indicators'].extend(matches[:5])
+        
+        # Equation indicators
+        equation_patterns = [
+            r'equation\s+\d+', r'eq\.\s+\d+', r'\$.*\$',
+            r'\\begin\{equation\}', r'\\[.*\\]'
+        ]
+        
+        for pattern in equation_patterns:
+            matches = re.findall(pattern, text, re.IGNORECASE)
+            if matches:
+                elements['equations']['count'] += len(matches)
+                elements['equations']['indicators'].extend(matches[:3])
+        
+        # Code block indicators
+        code_patterns = [
+            r'```[\s\S]*?```', r'`[^`]+`', r'def\s+\w+\s*\(',
+            r'class\s+\w+:', r'#include\s*<', r'import\s+\w+'
+        ]
+        
+        for pattern in code_patterns:
+            matches = re.findall(pattern, text)
+            if matches:
+                elements['code_blocks']['count'] += len(matches)
+                elements['code_blocks']['indicators'].extend(matches[:3])
+        
+        # List indicators
+        list_patterns = [
+            (r'^\s*[-*+]\s+', 'bullet'),
+            (r'^\s*\d+\.\s+', 'numbered'),
+            (r'^\s*[a-zA-Z]\.\s+', 'lettered')
+        ]
+        
+        for pattern, list_type in list_patterns:
+            matches = re.findall(pattern, text, re.MULTILINE)
+            if matches:
+                elements['lists']['count'] += len(matches)
+                if list_type not in elements['lists']['types']:
+                    elements['lists']['types'].append(list_type)
+        
+        # Footnote indicators
+        footnote_patterns = [r'\[\d+\]', r'^\d+\s+', r'\*+\s*']
+        
+        for pattern in footnote_patterns:
+            matches = re.findall(pattern, text, re.MULTILINE)
+            if matches:
+                elements['footnotes']['count'] += len(matches)
+                elements['footnotes']['indicators'].extend(matches[:5])
+        
+        # Header analysis (from structure analysis)
+        structure = analysis_results.get('structure', {})
+        if structure.get('headings'):
+            elements['headers']['count'] = len(structure['headings'])
+            elements['headers']['levels'] = list(set(h.get('level', 1) for h in structure['headings']))
+        
+        return elements
+    
+    def _generate_integrity_hashes(self, file_info: Dict) -> Dict:
+        """Generate multiple hash types for integrity verification"""
+        hashes = {
+            'sha256': None,
+            'md5': None,
+            'sha1': None,
+            'file_size': file_info.get('size', 0),
+            'timestamp': datetime.now().isoformat()
+        }
+        
+        try:
+            if 'content' in file_info and file_info['content']:
+                content = file_info['content']
+                if isinstance(content, str):
+                    content = content.encode('utf-8')
+                elif hasattr(content, 'getvalue'):
+                    content = content.getvalue()
+                
+                hashes['sha256'] = hashlib.sha256(content).hexdigest()
+                hashes['md5'] = hashlib.md5(content).hexdigest()
+                hashes['sha1'] = hashlib.sha1(content).hexdigest()
+                hashes['file_size'] = len(content)
+        except Exception as e:
+            logger.error(f"Error generating hashes: {e}")
+        
+        return hashes
+    
     def _generate_file_metadata(self, file_info: Dict) -> Dict:
         """Generate file-specific metadata"""
+        # Handle both 'name' and 'filename' keys for compatibility
+        filename = file_info.get('name') or file_info.get('filename', 'unknown')
+        file_size = file_info.get('size') or file_info.get('file_size', 0)
+        file_type = file_info.get('type') or file_info.get('file_type', 'unknown')
+        upload_time = file_info.get('upload_time') or file_info.get('upload_timestamp', datetime.now().isoformat())
+        
         return {
-            'filename': file_info.get('filename', 'unknown'),
-            'file_size': file_info.get('file_size', 0),
-            'file_size_human': self._format_file_size(file_info.get('file_size', 0)),
-            'file_type': file_info.get('file_type', 'unknown'),
-            'mime_type': file_info.get('file_type', 'unknown'),
-            'upload_timestamp': file_info.get('upload_timestamp', datetime.now().isoformat()),
+            'filename': filename,
+            'file_size': file_size,
+            'file_size_human': self._format_file_size(file_size),
+            'file_type': file_type,
+            'mime_type': file_type,
+            'upload_timestamp': upload_time,
             'file_hash': file_info.get('file_hash', 'unknown'),
-            'file_extension': self._extract_extension(file_info.get('filename', ''))
+            'file_extension': self._extract_extension(filename)
         }
     
     def _generate_content_metadata(self, text: str, analysis_results: Dict) -> Dict:

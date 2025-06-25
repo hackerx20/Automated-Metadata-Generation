@@ -215,18 +215,6 @@ The application is configured for deployment on cloud platforms with:
 4. Add tests if applicable
 5. Submit a pull request
 
-## 📝 License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
-
-## 🆘 Support
-
-For issues and questions:
-1. Check the configuration in `config/config.yaml`
-2. Verify all dependencies are installed correctly
-3. Ensure spaCy model is downloaded: `python -m spacy download en_core_web_sm`
-4. Check the logs for detailed error messages
-
 ## 🔮 Future Enhancements
 
 - Multi-language support

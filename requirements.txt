@@ -1,20 +1,68 @@
+# Core Web Framework
 streamlit>=1.28.0
-PyPDF2>=3.0.0
-pdfplumber>=0.9.0
+
+# Document Processing
+PyPDF2>=3.0.1
 python-docx>=0.8.11
+python-docx2txt>=0.8
+
+# OCR Support
 pytesseract>=0.3.10
 Pillow>=10.0.0
+
+# NLP Libraries
 spacy>=3.7.0
 nltk>=3.8.1
 textstat>=0.7.3
-scikit-learn>=1.3.0
+langdetect>=1.0.9
+
+# Keyword Extraction
 yake>=0.4.8
+
+# Sentiment Analysis (VADER is included in NLTK)
+vaderSentiment>=3.3.2
+
+# Topic Modeling and Advanced NLP
+scikit-learn>=1.3.0
+gensim>=4.3.0
+transformers>=4.30.0
+
+# Data Processing and Analysis
 pandas>=2.0.0
 numpy>=1.24.0
-plotly
-pyyaml>=6.0.1
+
+# Visualization
+matplotlib>=3.7.0
+seaborn>=0.12.0
+plotly>=5.15.0
+wordcloud>=1.9.2
+
+# Text Processing Utilities
+regex>=2023.6.3
+unidecode>=1.3.6
+
+# Configuration Management
+PyYAML>=6.0
+
+# Utilities
+tqdm>=4.65.0
+requests>=2.31.0
+
+# File Handling
+openpyxl>=3.1.0
+xlsxwriter>=3.1.0
+
+# JSON Processing
+ujson>=5.8.0
+
+# Date and Time Handling
 python-dateutil>=2.8.2
-pytest>=7.4.0
-black>=23.0.0
-flake8>=6.0.0
-pdf2image
+
+# Security and Validation
+validators>=0.20.0
+
+# Memory Management
+psutil>=5.9.0
+
+# Caching (for Streamlit)
+streamlit-extras>=0.3.0

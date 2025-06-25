@@ -42,9 +42,6 @@ Output (Structured Metadata + Visualization)
 - Python 3.11+
 - Tesseract OCR (for scanned PDF processing)
 
-### Python Packages
-See `project_requirements.txt` for the complete list of dependencies.
-
 ### Installation
 
 1. Clone the repository:
@@ -55,7 +52,7 @@ cd automated-metadata-generation
 
 2. Install Python dependencies:
 ```bash
-pip install -r project_requirements.txt
+pip install -r requirements.txt
 ```
 
 3. Download required NLP models:
@@ -79,10 +76,8 @@ nltk.download('averaged_perceptron_tagger')
 
 1. Start the Streamlit server:
 ```bash
-streamlit run app.py --server.port 5000
+streamlit run app.py
 ```
-
-2. Open your browser and navigate to `http://localhost:5000`
 
 ### Using the System
 
@@ -174,16 +169,6 @@ automated-metadata-generation/
 9. **Topic Modeling**: Classify document topics and themes
 10. **Document Classification**: Categorize document type and purpose
 
-## 🎨 User Interface
-
-The application features a clean, intuitive interface with:
-
-- **Upload Interface**: Drag-and-drop file upload with validation
-- **Processing Status**: Real-time progress indicators
-- **Tabbed Results**: Organized metadata display
-- **Visual Analytics**: Charts and graphs for data insights
-- **Export Options**: Multiple download formats
-- **Processing History**: Track previous analyses
 
 ## 🔒 Security
 
@@ -197,7 +182,7 @@ The application features a clean, intuitive interface with:
 
 ### Local Development
 ```bash
-streamlit run app.py --server.port 5000
+streamlit run app.py
 ```
 
 ### Production Deployment

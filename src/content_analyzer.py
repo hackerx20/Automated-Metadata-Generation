@@ -1,5 +1,4 @@
 import re
-import spacy
 import nltk
 from textstat import flesch_reading_ease, flesch_kincaid_grade
 from collections import Counter
@@ -21,12 +20,16 @@ try:
     nltk.download('vader_lexicon', quiet=True)
     nltk.download('averaged_perceptron_tagger_eng', quiet=True)
     nltk.download('averaged_perceptron_tagger', quiet=True)
+    nltk.download('maxent_ne_chunker', quiet=True)
+    nltk.download('words', quiet=True)
 except:
     pass
 
 from nltk.sentiment.vader import SentimentIntensityAnalyzer
 from nltk.corpus import stopwords
 from nltk.tokenize import sent_tokenize, word_tokenize
+from nltk.chunk import ne_chunk
+from nltk.tag import pos_tag
 
 class ContentAnalyzer:
     """
@@ -34,13 +37,6 @@ class ContentAnalyzer:
     """
     
     def __init__(self):
-        # Initialize NLP models
-        try:
-            self.nlp = spacy.load("en_core_web_sm")
-        except OSError:
-            logger.warning("spaCy model 'en_core_web_sm' not found. Some features may be limited.")
-            self.nlp = None
-        
         # Initialize sentiment analyzer
         try:
             self.sentiment_analyzer = SentimentIntensityAnalyzer()
@@ -258,29 +254,40 @@ class ContentAnalyzer:
             return []
     
     def _extract_key_phrases(self, text: str) -> List[str]:
-        """Extract key phrases using various techniques"""
+        """Extract key phrases using NLTK POS tagging"""
         phrases = []
         
         try:
-            # Extract noun phrases using spaCy
-            if self.nlp:
-                doc = self.nlp(text)
-                noun_phrases = [chunk.text.strip() for chunk in doc.noun_chunks 
-                              if len(chunk.text.strip()) > 3]
-                phrases.extend(noun_phrases[:15])
-            
             # Extract phrases using POS tagging patterns
             sentences = sent_tokenize(text)
-            for sentence in sentences[:10]:  # First 10 sentences
+            
+            for sentence in sentences[:15]:  # First 15 sentences
                 words = word_tokenize(sentence)
-                pos_tags = nltk.pos_tag(words)
+                pos_tags = pos_tag(words)
                 
-                # Pattern: Adjective + Noun
+                # Pattern 1: Adjective + Noun
                 for i in range(len(pos_tags) - 1):
                     if (pos_tags[i][1] in ['JJ', 'JJR', 'JJS'] and 
                         pos_tags[i+1][1] in ['NN', 'NNS', 'NNP', 'NNPS']):
                         phrase = f"{pos_tags[i][0]} {pos_tags[i+1][0]}"
                         if len(phrase) > 3:
+                            phrases.append(phrase)
+                
+                # Pattern 2: Noun + Noun (compound nouns)
+                for i in range(len(pos_tags) - 1):
+                    if (pos_tags[i][1] in ['NN', 'NNS', 'NNP', 'NNPS'] and 
+                        pos_tags[i+1][1] in ['NN', 'NNS', 'NNP', 'NNPS']):
+                        phrase = f"{pos_tags[i][0]} {pos_tags[i+1][0]}"
+                        if len(phrase) > 3:
+                            phrases.append(phrase)
+                
+                # Pattern 3: Adjective + Adjective + Noun
+                for i in range(len(pos_tags) - 2):
+                    if (pos_tags[i][1] in ['JJ', 'JJR', 'JJS'] and 
+                        pos_tags[i+1][1] in ['JJ', 'JJR', 'JJS'] and
+                        pos_tags[i+2][1] in ['NN', 'NNS', 'NNP', 'NNPS']):
+                        phrase = f"{pos_tags[i][0]} {pos_tags[i+1][0]} {pos_tags[i+2][0]}"
+                        if len(phrase) > 5:
                             phrases.append(phrase)
             
         except Exception as e:
@@ -291,23 +298,46 @@ class ContentAnalyzer:
         return unique_phrases[:20]
     
     def _extract_named_entities(self, text: str) -> List[Dict]:
-        """Extract named entities using spaCy"""
+        """Extract named entities using NLTK's named entity chunker"""
         entities = []
         
-        if not self.nlp:
-            return entities
-        
         try:
-            doc = self.nlp(text)
+            sentences = sent_tokenize(text)
             
-            for ent in doc.ents:
-                entities.append({
-                    'text': ent.text,
-                    'label': ent.label_,
-                    'description': spacy.explain(ent.label_) or ent.label_,
-                    'start': ent.start_char,
-                    'end': ent.end_char
-                })
+            for sentence in sentences[:10]:  # Process first 10 sentences
+                tokens = word_tokenize(sentence)
+                pos_tags = pos_tag(tokens)
+                
+                # Use NLTK's named entity chunker
+                try:
+                    chunks = ne_chunk(pos_tags, binary=False)
+                    
+                    for chunk in chunks:
+                        if hasattr(chunk, 'label'):
+                            entity_text = ' '.join([token for token, pos in chunk.leaves()])
+                            entity_label = chunk.label()
+                            
+                            # Map NLTK labels to more readable descriptions
+                            label_descriptions = {
+                                'PERSON': 'Person',
+                                'ORGANIZATION': 'Organization',
+                                'GPE': 'Geopolitical Entity',
+                                'LOCATION': 'Location',
+                                'FACILITY': 'Facility',
+                                'GSP': 'Geopolitical Entity'
+                            }
+                            
+                            entities.append({
+                                'text': entity_text,
+                                'label': entity_label,
+                                'description': label_descriptions.get(entity_label, entity_label),
+                                'start': 0,  # NLTK doesn't provide character positions easily
+                                'end': 0
+                            })
+                            
+                except Exception as e:
+                    # Fallback: simple pattern-based entity extraction
+                    entities.extend(self._extract_entities_pattern_based(sentence))
             
             # Remove duplicates
             seen = set()
@@ -324,6 +354,32 @@ class ContentAnalyzer:
             logger.warning(f"Error extracting named entities: {str(e)}")
             return []
     
+    def _extract_entities_pattern_based(self, text: str) -> List[Dict]:
+        """Simple pattern-based entity extraction as fallback"""
+        entities = []
+        
+        # Simple patterns for common entities
+        patterns = {
+            'EMAIL': r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b',
+            'URL': r'http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\\(\\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+',
+            'PHONE': r'\b\d{3}[-.]?\d{3}[-.]?\d{4}\b',
+            'DATE': r'\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b',
+            'MONEY': r'\$\d+(?:,\d{3})*(?:\.\d{2})?'
+        }
+        
+        for label, pattern in patterns.items():
+            matches = re.finditer(pattern, text)
+            for match in matches:
+                entities.append({
+                    'text': match.group(),
+                    'label': label,
+                    'description': label.title(),
+                    'start': match.start(),
+                    'end': match.end()
+                })
+        
+        return entities
+    
     def _extract_topics(self, text: str) -> List[str]:
         """Extract topics using keyword clustering and rules"""
         topics = []
@@ -336,12 +392,14 @@ class ContentAnalyzer:
             
             # Simple topic identification based on keyword patterns
             topic_patterns = {
-                'Technology': ['software', 'computer', 'technology', 'digital', 'system', 'data', 'network'],
-                'Business': ['business', 'company', 'market', 'financial', 'revenue', 'profit', 'strategy'],
-                'Health': ['health', 'medical', 'patient', 'treatment', 'disease', 'doctor', 'medicine'],
-                'Education': ['education', 'student', 'school', 'learning', 'academic', 'university', 'research'],
-                'Legal': ['legal', 'law', 'court', 'contract', 'regulation', 'compliance', 'policy'],
-                'Science': ['research', 'study', 'analysis', 'scientific', 'experiment', 'data', 'results']
+                'Technology': ['software', 'computer', 'technology', 'digital', 'system', 'data', 'network', 'algorithm', 'programming', 'code'],
+                'Business': ['business', 'company', 'market', 'financial', 'revenue', 'profit', 'strategy', 'management', 'corporate', 'sales'],
+                'Health': ['health', 'medical', 'patient', 'treatment', 'disease', 'doctor', 'medicine', 'healthcare', 'clinical', 'therapy'],
+                'Education': ['education', 'student', 'school', 'learning', 'academic', 'university', 'research', 'study', 'teaching', 'knowledge'],
+                'Legal': ['legal', 'law', 'court', 'contract', 'regulation', 'compliance', 'policy', 'attorney', 'justice', 'rights'],
+                'Science': ['research', 'study', 'analysis', 'scientific', 'experiment', 'data', 'results', 'theory', 'hypothesis', 'discovery'],
+                'Finance': ['finance', 'investment', 'banking', 'money', 'financial', 'economic', 'budget', 'cost', 'price', 'funding'],
+                'Marketing': ['marketing', 'advertising', 'brand', 'customer', 'promotion', 'campaign', 'social media', 'digital marketing']
             }
             
             # Check which topics match the keywords
